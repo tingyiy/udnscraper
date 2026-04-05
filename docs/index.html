@@ -367,6 +367,28 @@ header {
   max-width: 720px;
   margin: 0 auto;
 }
+
+/* Scroll to top */
+.scroll-top {
+  position: fixed;
+  bottom: 24px;
+  right: 20px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  font-size: 22px;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 90;
+}
+
+.scroll-top.visible { display: flex; }
 </style>
 </head>
 <body>
@@ -394,6 +416,8 @@ header {
 </div>
 
 <div class="article-view" id="articleView"></div>
+
+<button class="scroll-top" id="scrollTop" onclick="window.scrollTo({top:0,behavior:'smooth'})">&uarr;</button>
 
 <script>
 let data = {};
@@ -428,6 +452,7 @@ async function init() {
     const metaResp = await fetch(`${BASE}/data/meta.json?v=${cb}`);
     const meta = await metaResp.json();
     if (meta.updated_at) {
+      lastUpdated = meta.updated_at;
       const d = new Date(meta.updated_at);
       const local = d.toLocaleString('zh-TW', { month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' });
       document.getElementById('updateTime').textContent = `最後更新：${local}`;
@@ -661,6 +686,40 @@ function esc(str) {
   d.textContent = str || '';
   return d.innerHTML;
 }
+
+/* Scroll-to-top button visibility */
+window.addEventListener('scroll', () => {
+  document.getElementById('scrollTop').classList.toggle('visible', window.scrollY > 400);
+}, { passive: true });
+
+/* Auto-refresh if data is older than 2 hours */
+let lastUpdated = null;
+const origInit = init;
+init = async function() {
+  await origInit();
+  // Check age periodically
+  setInterval(async () => {
+    if (!lastUpdated) return;
+    const age = Date.now() - new Date(lastUpdated).getTime();
+    if (age > 2 * 60 * 60 * 1000) {
+      try {
+        const cb = Date.now();
+        const resp = await fetch(`${BASE}/data/meta.json?v=${cb}`);
+        const meta = await resp.json();
+        if (meta.updated_at !== lastUpdated) {
+          // New data available, reload
+          const listResp = await fetch(`${BASE}/data/listings.json?v=${cb}`);
+          data = await listResp.json();
+          lastUpdated = meta.updated_at;
+          const d = new Date(lastUpdated);
+          const local = d.toLocaleString('zh-TW', { month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' });
+          document.getElementById('updateTime').textContent = `最後更新：${local}`;
+          renderSection();
+        }
+      } catch(e) {}
+    }
+  }, 5 * 60 * 1000); // Check every 5 minutes
+};
 
 init();
 </script>
