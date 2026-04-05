@@ -1,17 +1,22 @@
 #!/usr/bin/env python3
 """
-Sync UDN article listings and content into local SQLite.
+Sync UDN article listings and content into static JSON files.
+
+Fetches latest listings from UDN API, scrapes new articles,
+and deletes orphaned article files no longer in any listing.
 
 Usage:
-    python sync.py              # Sync listings + scrape new articles
-    python sync.py --list-only  # Only sync listings, don't scrape articles
+    python sync.py              # Full sync: listings + scrape + cleanup
+    python sync.py --list-only  # Only update listings, skip scraping
 """
 import requests
+import json
+import os
 import re
 import sys
 import time
+import glob
 
-from db import init_db, article_exists, upsert_article, upsert_listing, clear_listings
 from udn_scraper import scrape_udn_article
 
 HEADERS = {
@@ -28,9 +33,13 @@ SECTIONS = {
 
 API_BASE = "https://udn.com/api/more"
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+SITE_DIR = os.path.join(BASE_DIR, "site")
+DATA_DIR = os.path.join(SITE_DIR, "data")
+ARTICLES_DIR = os.path.join(DATA_DIR, "articles")
+
 
 def extract_article_id(title_link):
-    """Extract numeric article ID from a UDN path like /news/story/124061/9422974?..."""
     match = re.search(r"/(\d+)\?", title_link)
     if match:
         return match.group(1)
@@ -41,7 +50,6 @@ def extract_article_id(title_link):
 
 
 def fetch_listing_page(cate_id, page=0):
-    """Fetch one page of listings from the UDN API."""
     resp = requests.get(API_BASE, params={
         "page": page,
         "channelId": 2,
@@ -53,97 +61,115 @@ def fetch_listing_page(cate_id, page=0):
     return resp.json()
 
 
-def sync_listings(conn):
-    """Fetch all listing pages for each section and store in DB."""
-    for section_name, cate_id in SECTIONS.items():
-        print(f"Syncing listings: {section_name} (cate_id={cate_id})")
-        clear_listings(conn, section_name)
+def sync_listings():
+    """Fetch all listing pages for each section. Returns {category: [items]}."""
+    os.makedirs(ARTICLES_DIR, exist_ok=True)
+    categories = {}
 
-        order = 0
+    for section_name, cate_id in SECTIONS.items():
+        print(f"Fetching listings: {section_name}")
+        items = []
         page = 0
+
         while True:
             data = fetch_listing_page(cate_id, page)
-            items = data.get("lists", [])
-            if not items:
-                break
-
-            for item in items:
-                article_id = extract_article_id(item.get("titleLink", ""))
+            for entry in data.get("lists", []):
+                article_id = extract_article_id(entry.get("titleLink", ""))
                 if not article_id:
                     continue
-
-                upsert_listing(
-                    conn,
-                    article_id=article_id,
-                    category=section_name,
-                    title=item.get("title", ""),
-                    summary=item.get("paragraph", ""),
-                    thumbnail=item.get("url", ""),
-                    date=item.get("time", {}).get("date", ""),
-                    list_order=order,
-                )
-                order += 1
-
-            conn.commit()
+                items.append({
+                    "article_id": article_id,
+                    "title": entry.get("title", ""),
+                    "summary": entry.get("paragraph", ""),
+                    "thumbnail": entry.get("url", ""),
+                    "date": entry.get("time", {}).get("date", ""),
+                })
 
             if data.get("end", True):
                 break
             page += 1
             time.sleep(0.5)
 
-        print(f"  {order} articles listed")
+        categories[section_name] = items
+        print(f"  {len(items)} articles")
+
+    with open(os.path.join(DATA_DIR, "listings.json"), "w", encoding="utf-8") as f:
+        json.dump(categories, f, ensure_ascii=False)
+
+    return categories
 
 
-def scrape_new_articles(conn):
-    """Scrape full content for articles not yet in the DB."""
-    rows = conn.execute("""
-        SELECT DISTINCT l.article_id, l.title
-        FROM listings l
-        LEFT JOIN articles a ON l.article_id = a.article_id
-        WHERE a.article_id IS NULL
-    """).fetchall()
+def scrape_new_articles(categories):
+    """Scrape articles that don't have a JSON file yet."""
+    all_ids = set()
+    for items in categories.values():
+        for item in items:
+            all_ids.add(item["article_id"])
 
-    total = len(rows)
-    print(f"\nNew articles to scrape: {total}")
+    new_ids = [aid for aid in all_ids if not os.path.exists(os.path.join(ARTICLES_DIR, f"{aid}.json"))]
+    print(f"\nNew articles to scrape: {len(new_ids)}")
 
-    for i, row in enumerate(rows):
-        aid = row["article_id"]
-        title = row["title"]
-        print(f"  [{i+1}/{total}] {aid}: {title[:40]}...", end=" ", flush=True)
-
-        # Find the full URL from the listing
-        listing = conn.execute(
-            "SELECT * FROM listings WHERE article_id = ? LIMIT 1", (aid,)
-        ).fetchone()
-
+    for i, aid in enumerate(new_ids):
         url = f"https://udn.com/news/story/0/{aid}"
+        print(f"  [{i+1}/{len(new_ids)}] {aid}", end=" ", flush=True)
 
         try:
             article = scrape_udn_article(url)
-            article["thumbnail"] = listing["thumbnail"] if listing else ""
-            article["summary"] = listing["summary"] if listing else ""
-            upsert_article(conn, aid, article)
+            out = {
+                "article_id": aid,
+                "title": article["title"],
+                "date": article["date"],
+                "source": article["source"],
+                "author": article["author"],
+                "section": article["section"],
+                "cover_image": article["cover_image"],
+                "body": article["body"],
+            }
+            with open(os.path.join(ARTICLES_DIR, f"{aid}.json"), "w", encoding="utf-8") as f:
+                json.dump(out, f, ensure_ascii=False)
             print("OK")
         except Exception as e:
             print(f"FAILED: {e}")
 
-        time.sleep(1)  # be polite
+        time.sleep(1)
+
+
+def cleanup_orphans(categories):
+    """Delete article JSON files not referenced in any listing."""
+    referenced = set()
+    for items in categories.values():
+        for item in items:
+            referenced.add(item["article_id"])
+
+    existing = set()
+    for path in glob.glob(os.path.join(ARTICLES_DIR, "*.json")):
+        aid = os.path.basename(path).replace(".json", "")
+        existing.add(aid)
+
+    orphans = existing - referenced
+    if orphans:
+        print(f"\nCleaning up {len(orphans)} orphaned articles")
+        for aid in orphans:
+            path = os.path.join(ARTICLES_DIR, f"{aid}.json")
+            os.remove(path)
+            print(f"  Deleted {aid}.json")
+    else:
+        print("\nNo orphaned articles")
 
 
 def main():
     list_only = "--list-only" in sys.argv
 
-    conn = init_db()
-    sync_listings(conn)
+    categories = sync_listings()
 
     if not list_only:
-        scrape_new_articles(conn)
+        scrape_new_articles(categories)
 
-    # Summary
-    total_listings = conn.execute("SELECT COUNT(*) FROM listings").fetchone()[0]
-    total_articles = conn.execute("SELECT COUNT(*) FROM articles").fetchone()[0]
-    print(f"\nDone. Listings: {total_listings}, Articles with content: {total_articles}")
-    conn.close()
+    cleanup_orphans(categories)
+
+    total_articles = len(glob.glob(os.path.join(ARTICLES_DIR, "*.json")))
+    total_listed = sum(len(v) for v in categories.values())
+    print(f"\nDone. Listed: {total_listed}, Article files: {total_articles}")
 
 
 if __name__ == "__main__":

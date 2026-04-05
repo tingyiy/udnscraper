@@ -7,14 +7,11 @@ Scrapes UDN (聯合新聞網) articles from the **全球** and **運動** sectio
 ## How it works
 
 ```
-UDN API → sync.py → SQLite (udn.db) → build.py → static site (site/)
-                                                        ↓
-                                                  GitHub Pages
+UDN API → sync.py → static JSON files (site/data/) → GitHub Pages
 ```
 
-1. `sync.py` fetches latest article listings from UDN's API, then scrapes full content for new articles into a local SQLite database. Already-scraped articles are skipped (dedup by article ID).
-2. `build.py` reads from SQLite and generates static JSON files under `site/data/`.
-3. `site/index.html` is a single-page app (vanilla HTML/CSS/JS) that reads those JSON files. No framework, no build step.
+1. `sync.py` fetches latest article listings from UDN's API, scrapes full content for new articles, and writes everything as static JSON files. Already-scraped articles are skipped (dedup by checking if `{id}.json` exists). Orphaned article files no longer in any listing are auto-deleted.
+2. `site/index.html` is a single-page app (vanilla HTML/CSS/JS) that reads those JSON files. No framework, no build step, no database.
 
 ## Setup
 
@@ -29,17 +26,11 @@ cd udnscraper
 
 ## Usage
 
-### Sync + build
+### Sync
 
 ```bash
-python sync.py        # Fetch listings + scrape new articles → SQLite
-python build.py       # Generate static site from DB
-```
-
-### Sync only (no article scraping)
-
-```bash
-python sync.py --list-only
+python sync.py              # Fetch listings + scrape new articles + cleanup orphans
+python sync.py --list-only  # Only update listings, skip scraping
 ```
 
 ### Scrape a single article
@@ -70,7 +61,7 @@ Run this on any machine (local crontab, Oracle Cloud, etc.):
 
 ```bash
 cd /path/to/udnscraper
-python sync.py && python build.py
+python sync.py
 git add site/data/
 git commit -m "update articles $(date +%Y-%m-%d)"
 git push
@@ -79,7 +70,7 @@ git push
 Example crontab (every 30 minutes):
 
 ```
-*/30 * * * * cd /path/to/udnscraper && python3 sync.py && python3 build.py && git add site/data/ && git commit -m "update $(date +\%Y-\%m-\%d\ \%H:\%M)" && git push
+*/30 * * * * cd /path/to/udnscraper && python3 sync.py && git add site/data/ && git commit -m "update $(date +\%Y-\%m-\%d\ \%H:\%M)" && git push
 ```
 
 Or use **GitHub Actions** for a fully serverless cron — no machine needed.
@@ -89,10 +80,7 @@ Or use **GitHub Actions** for a fully serverless cron — no machine needed.
 ```
 udnscraper/
 ├── udn_scraper.py    # Scrape individual UDN articles
-├── db.py             # SQLite storage with dedup
-├── sync.py           # Fetch listings + scrape new articles
-├── build.py          # Generate static site from DB
-├── udn.db            # Local SQLite database (gitignored)
+├── sync.py           # Fetch listings, scrape new articles, cleanup orphans
 ├── site/
 │   ├── index.html    # Mobile-friendly SPA
 │   └── data/
