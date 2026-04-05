@@ -80,6 +80,26 @@ def parse_slider(soup):
     return items
 
 
+def parse_tiles(soup):
+    """Extract colored-content tiles (navigation tiles with background images)."""
+    tiles = []
+    colored = soup.select_one(".colored-content.context-box")
+    if colored:
+        for lst in colored.select(".colored-content__list"):
+            title_el = lst.select_one(".colored-content__title")
+            if not title_el:
+                continue
+            href = lst.get("href", "")
+            style = lst.get("style", "")
+            bg = re.search(r"url\('([^']+)'\)", style)
+            tiles.append({
+                "title": title_el.get_text(strip=True),
+                "href": href,
+                "image": bg.group(1) if bg else "",
+            })
+    return tiles
+
+
 def parse_subsections(soup):
     """Extract sub-sections (專欄, 棒球, MLB, etc.) from server-rendered HTML."""
     subsections = []
@@ -162,7 +182,12 @@ def sync_section(section_name, cate_id):
     slider = parse_slider(soup)
     print(f"  Slider: {len(slider)} items")
 
-    # 2. Sub-sections from HTML
+    # 2. Tiles (colored-content navigation)
+    tiles = parse_tiles(soup)
+    if tiles:
+        print(f"  Tiles: {[t['title'] for t in tiles]}")
+
+    # 3. Sub-sections from HTML
     subsections = parse_subsections(soup)
     for sub in subsections:
         print(f"  {sub['name']}: {len(sub['articles'])} items")
@@ -171,14 +196,18 @@ def sync_section(section_name, cate_id):
     latest_api = fetch_latest_api(cate_id)
     print(f"  最新文章 (API): {len(latest_api)} items")
 
-    # Remove server-rendered 最新文章 (only 6 items), replace with API version
-    subsections = [s for s in subsections if s["name"] != "最新文章"]
-    subsections.insert(0, {"name": "最新文章", "articles": latest_api})
+    # Replace server-rendered 最新文章 (only 6 items) with full API version, keeping original position
+    for i, s in enumerate(subsections):
+        if s["name"] == "最新文章":
+            subsections[i] = {"name": "最新文章", "articles": latest_api}
+            break
+    else:
+        subsections.append({"name": "最新文章", "articles": latest_api})
 
-    return {
-        "slider": slider,
-        "subsections": subsections,
-    }
+    result = {"slider": slider, "subsections": subsections}
+    if tiles:
+        result["tiles"] = tiles
+    return result
 
 
 def sync_all():
