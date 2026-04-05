@@ -1,0 +1,10 @@
+{
+  "cases": [
+    {
+      "id": "9422974",
+      "input": "https://udn.com/news/story/124061/9422974",
+      "expected_file": "reference/9422974_expected.txt",
+      "notes": "Iran-Trump ultimatum article, Chinese language, standard UDN news layout"
+    }
+  ]
+}
