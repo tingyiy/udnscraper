@@ -12,6 +12,7 @@ UDN API → sync.py → static JSON files (docs/data/) → GitHub Pages
 
 1. `sync.py` fetches latest article listings from UDN's API, scrapes full content for new articles, and writes everything as static JSON files. Already-scraped articles are skipped (dedup by checking if `{id}.json` exists). Orphaned article files no longer in any listing are auto-deleted.
 2. `docs/index.html` is a single-page app (vanilla HTML/CSS/JS) that reads those JSON files. No framework, no build step, no database.
+3. A GitHub Actions workflow runs `sync.py` every 2 hours and commits new data automatically.
 
 ## Setup
 
@@ -44,7 +45,7 @@ python udn_scraper.py https://udn.com/news/story/124061/9422974 --format text  #
 ### Preview locally
 
 ```bash
-cd site && python -m http.server 8080
+cd docs && python -m http.server 8080
 # Open http://localhost:8080
 ```
 
@@ -55,38 +56,31 @@ cd site && python -m http.server 8080
 3. Branch: `main`, folder: `/docs`
 4. Save — site will be live at `https://tingyiy.github.io/udnscraper/`
 
-## Cron job (keep site updated)
+## Auto-sync with GitHub Actions
 
-Run this on any machine (local crontab, Oracle Cloud, etc.):
+A workflow in `.github/workflows/sync.yml` runs every 2 hours:
 
-```bash
-cd /path/to/udnscraper
-python sync.py
-git add docs/data/
-git commit -m "update articles $(date +%Y-%m-%d)"
-git push
-```
+1. Checks out the repo
+2. Runs `python sync.py` (fetches listings, scrapes new articles, cleans orphans)
+3. Commits and pushes any changes to `docs/data/`
 
-Example crontab (every 30 minutes):
+You can also trigger it manually: **Actions → Sync UDN Articles → Run workflow**.
 
-```
-*/30 * * * * cd /path/to/udnscraper && python3 sync.py && git add docs/data/ && git commit -m "update $(date +\%Y-\%m-\%d\ \%H:\%M)" && git push
-```
-
-Or use **GitHub Actions** for a fully serverless cron — no machine needed.
+The workflow keeps itself alive because each sync commits new article data (GitHub disables scheduled workflows after 60 days of repo inactivity).
 
 ## Project structure
 
 ```
 udnscraper/
-├── udn_scraper.py    # Scrape individual UDN articles
-├── sync.py           # Fetch listings, scrape new articles, cleanup orphans
+├── udn_scraper.py              # Scrape individual UDN articles
+├── sync.py                     # Fetch listings, scrape new articles, cleanup orphans
+├── .github/workflows/sync.yml  # GitHub Actions: auto-sync every 2 hours
 ├── docs/
-│   ├── index.html    # Mobile-friendly SPA
+│   ├── index.html              # Mobile-friendly SPA
 │   └── data/
-│       ├── listings.json          # Section listings
-│       └── articles/{id}.json     # Individual article content
-└── research/         # Experiment logs from development
+│       ├── listings.json       # Section listings (slider, tiles, subsections)
+│       ├── meta.json           # Last-updated timestamp
+│       └── articles/{id}.json  # Individual article content
 ```
 
 ## Sections
