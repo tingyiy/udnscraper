@@ -358,6 +358,15 @@ header {
   color: #bbb;
   font-size: 15px;
 }
+
+.update-time {
+  text-align: center;
+  font-size: 12px;
+  color: #bbb;
+  padding: 16px;
+  max-width: 720px;
+  margin: 0 auto;
+}
 </style>
 </head>
 <body>
@@ -381,6 +390,7 @@ header {
   <div class="content" id="content">
     <div class="loading">載入中...</div>
   </div>
+  <div class="update-time" id="updateTime"></div>
 </div>
 
 <div class="article-view" id="articleView"></div>
@@ -413,6 +423,12 @@ async function init() {
     const resp = await fetch(`${BASE}/data/listings.json`);
     data = await resp.json();
     renderSection();
+    // Load update time
+    const metaResp = await fetch(`${BASE}/data/meta.json`);
+    const meta = await metaResp.json();
+    if (meta.updated_at) {
+      document.getElementById('updateTime').textContent = `最後更新：${meta.updated_at}`;
+    }
   } catch (e) {
     document.getElementById('content').innerHTML = '<div class="empty">無法載入資料</div>';
   }
