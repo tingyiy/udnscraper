@@ -1,5 +1,0 @@
-id	area	wins	losses	ties	recall	extra	status	description
-001	baseline	0	0	0	60%	3	baseline	requests+bs4, article tag extraction
-002	selectors	10	0	0	100%	0	keep	targeted CSS selectors, structured extraction, md output
-003	structure	8	2	0	80%	0	keep	reusable module, structured data, date fix (judge format issue)
-004	generalize	-	-	-	100%	0	keep	final scraper module, tested on 3 articles
