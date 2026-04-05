@@ -692,33 +692,46 @@ window.addEventListener('scroll', () => {
   document.getElementById('scrollTop').classList.toggle('visible', window.scrollY > 400);
 }, { passive: true });
 
-/* Auto-refresh if data is older than 2 hours */
+/* Auto-refresh: track client fetch time in localStorage */
+function recordFetch() {
+  localStorage.setItem('lastFetchTime', Date.now().toString());
+}
+
+function getLastFetchAge() {
+  const t = parseInt(localStorage.getItem('lastFetchTime') || '0');
+  return Date.now() - t;
+}
+
+async function refreshData() {
+  try {
+    const cb = Date.now();
+    const listResp = await fetch(`${BASE}/data/listings.json?v=${cb}`);
+    data = await listResp.json();
+    const metaResp = await fetch(`${BASE}/data/meta.json?v=${cb}`);
+    const meta = await metaResp.json();
+    if (meta.updated_at) {
+      lastUpdated = meta.updated_at;
+      const d = new Date(meta.updated_at);
+      const local = d.toLocaleString('zh-TW', { month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' });
+      document.getElementById('updateTime').textContent = `最後更新：${local}`;
+    }
+    recordFetch();
+    renderSection();
+  } catch(e) {}
+}
+
+// On page load: if last fetch was >2 hours ago, refresh immediately
 let lastUpdated = null;
 const origInit = init;
 init = async function() {
   await origInit();
-  // Check age periodically
-  setInterval(async () => {
-    if (!lastUpdated) return;
-    const age = Date.now() - new Date(lastUpdated).getTime();
-    if (age > 2 * 60 * 60 * 1000) {
-      try {
-        const cb = Date.now();
-        const resp = await fetch(`${BASE}/data/meta.json?v=${cb}`);
-        const meta = await resp.json();
-        if (meta.updated_at !== lastUpdated) {
-          // New data available, reload
-          const listResp = await fetch(`${BASE}/data/listings.json?v=${cb}`);
-          data = await listResp.json();
-          lastUpdated = meta.updated_at;
-          const d = new Date(lastUpdated);
-          const local = d.toLocaleString('zh-TW', { month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' });
-          document.getElementById('updateTime').textContent = `最後更新：${local}`;
-          renderSection();
-        }
-      } catch(e) {}
+  recordFetch();
+  // Check every 5 minutes if 2 hours have passed since last fetch
+  setInterval(() => {
+    if (getLastFetchAge() > 2 * 60 * 60 * 1000) {
+      refreshData();
     }
-  }, 5 * 60 * 1000); // Check every 5 minutes
+  }, 5 * 60 * 1000);
 };
 
 init();
