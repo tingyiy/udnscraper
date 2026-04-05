@@ -7,11 +7,11 @@ Scrapes UDN (聯合新聞網) articles from the **全球** and **運動** sectio
 ## How it works
 
 ```
-UDN API → sync.py → static JSON files (site/data/) → GitHub Pages
+UDN API → sync.py → static JSON files (docs/data/) → GitHub Pages
 ```
 
 1. `sync.py` fetches latest article listings from UDN's API, scrapes full content for new articles, and writes everything as static JSON files. Already-scraped articles are skipped (dedup by checking if `{id}.json` exists). Orphaned article files no longer in any listing are auto-deleted.
-2. `site/index.html` is a single-page app (vanilla HTML/CSS/JS) that reads those JSON files. No framework, no build step, no database.
+2. `docs/index.html` is a single-page app (vanilla HTML/CSS/JS) that reads those JSON files. No framework, no build step, no database.
 
 ## Setup
 
@@ -52,7 +52,7 @@ cd site && python -m http.server 8080
 
 1. Go to repo **Settings → Pages**
 2. Source: **Deploy from a branch**
-3. Branch: `main`, folder: `/site`
+3. Branch: `main`, folder: `/docs`
 4. Save — site will be live at `https://tingyiy.github.io/udnscraper/`
 
 ## Cron job (keep site updated)
@@ -62,7 +62,7 @@ Run this on any machine (local crontab, Oracle Cloud, etc.):
 ```bash
 cd /path/to/udnscraper
 python sync.py
-git add site/data/
+git add docs/data/
 git commit -m "update articles $(date +%Y-%m-%d)"
 git push
 ```
@@ -70,7 +70,7 @@ git push
 Example crontab (every 30 minutes):
 
 ```
-*/30 * * * * cd /path/to/udnscraper && python3 sync.py && git add site/data/ && git commit -m "update $(date +\%Y-\%m-\%d\ \%H:\%M)" && git push
+*/30 * * * * cd /path/to/udnscraper && python3 sync.py && git add docs/data/ && git commit -m "update $(date +\%Y-\%m-\%d\ \%H:\%M)" && git push
 ```
 
 Or use **GitHub Actions** for a fully serverless cron — no machine needed.
@@ -81,7 +81,7 @@ Or use **GitHub Actions** for a fully serverless cron — no machine needed.
 udnscraper/
 ├── udn_scraper.py    # Scrape individual UDN articles
 ├── sync.py           # Fetch listings, scrape new articles, cleanup orphans
-├── site/
+├── docs/
 │   ├── index.html    # Mobile-friendly SPA
 │   └── data/
 │       ├── listings.json          # Section listings

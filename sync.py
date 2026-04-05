@@ -34,7 +34,7 @@ SECTIONS = {
 API_BASE = "https://udn.com/api/more"
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-SITE_DIR = os.path.join(BASE_DIR, "site")
+SITE_DIR = os.path.join(BASE_DIR, "docs")
 DATA_DIR = os.path.join(SITE_DIR, "data")
 ARTICLES_DIR = os.path.join(DATA_DIR, "articles")
 
