@@ -222,10 +222,9 @@ def sync_all():
     with open(os.path.join(DATA_DIR, "listings.json"), "w", encoding="utf-8") as f:
         json.dump(categories, f, ensure_ascii=False)
 
-    # Write last-updated timestamp
-    from datetime import datetime, timezone, timedelta
-    tw = timezone(timedelta(hours=8))
-    now = datetime.now(tw).strftime("%Y-%m-%d %H:%M")
+    # Write last-updated timestamp in UTC ISO format
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc).isoformat()
     with open(os.path.join(DATA_DIR, "meta.json"), "w", encoding="utf-8") as f:
         json.dump({"updated_at": now}, f, ensure_ascii=False)
 

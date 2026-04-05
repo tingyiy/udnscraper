@@ -428,7 +428,9 @@ async function init() {
     const metaResp = await fetch(`${BASE}/data/meta.json?v=${cb}`);
     const meta = await metaResp.json();
     if (meta.updated_at) {
-      document.getElementById('updateTime').textContent = `最後更新：${meta.updated_at}`;
+      const d = new Date(meta.updated_at);
+      const local = d.toLocaleString('zh-TW', { month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' });
+      document.getElementById('updateTime').textContent = `最後更新：${local}`;
     }
   } catch (e) {
     document.getElementById('content').innerHTML = '<div class="empty">無法載入資料</div>';
