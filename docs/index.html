@@ -420,11 +420,12 @@ function applyFontSize() {
 
 async function init() {
   try {
-    const resp = await fetch(`${BASE}/data/listings.json`);
+    const cb = Date.now();
+    const resp = await fetch(`${BASE}/data/listings.json?v=${cb}`);
     data = await resp.json();
     renderSection();
     // Load update time
-    const metaResp = await fetch(`${BASE}/data/meta.json`);
+    const metaResp = await fetch(`${BASE}/data/meta.json?v=${cb}`);
     const meta = await metaResp.json();
     if (meta.updated_at) {
       document.getElementById('updateTime').textContent = `最後更新：${meta.updated_at}`;
@@ -600,7 +601,7 @@ async function showArticle(id, fromPopstate) {
   }
 
   try {
-    const resp = await fetch(`${BASE}/data/articles/${id}.json`);
+    const resp = await fetch(`${BASE}/data/articles/${id}.json?v=${Date.now()}`);
     const art = await resp.json();
     renderArticle(art);
   } catch (e) {
