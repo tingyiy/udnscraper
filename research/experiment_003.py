@@ -49,18 +49,22 @@ def scrape_udn_article(url):
     result["author"] = ""
     result["section"] = ""
 
+    # Date is in .article-content__time or section.authors > time
+    time_el = soup.select_one(".article-content__time")
+    if time_el:
+        result["date"] = time_el.get_text(strip=True)
+    else:
+        authors_section = soup.select_one("section.authors")
+        if authors_section:
+            t = authors_section.find("time")
+            if t:
+                result["date"] = t.get_text(strip=True)
+
     author_el = soup.select_one(".article-content__author")
     if author_el:
-        # Date is in <time> tag
-        time_el = author_el.find("time")
-        if time_el:
-            result["date"] = time_el.get_text(strip=True)
 
-        # Get the full text, remove date, parse remaining
+        # Get the full text, parse source/author/section
         full_text = author_el.get_text(" ", strip=True)
-        # Remove date portion
-        if result["date"]:
-            full_text = full_text.replace(result["date"], "").strip()
 
         # Pattern: "聯合報／ 編譯 盧思綸 ／即時報導"
         # or: "聯合報／ 記者XXX ／即時報導"
