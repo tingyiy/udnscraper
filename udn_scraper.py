@@ -122,6 +122,9 @@ def scrape_udn_article(url):
             class_str = " ".join(classes) if classes else ""
             if "inline-ads" in class_str or "udn-ads" in class_str:
                 continue
+            # Skip social media embeds (twitter, instagram, facebook, etc.)
+            if any(x in class_str for x in ("twitter", "instagram", "facebook", "embed")):
+                continue
 
             # Inline images (figures)
             for fig in child.find_all("figure"):
@@ -138,7 +141,7 @@ def scrape_udn_article(url):
             # Text paragraphs
             if child.name == "p":
                 text = child.get_text(strip=True)
-                if text:
+                if text and text not in ("twitter loading...", "instagram loading..."):
                     result["body"].append({"type": "text", "content": text})
 
     return result
