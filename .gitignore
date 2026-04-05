@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+udn.db
+research/results/
+research/best_results.json
+.env
