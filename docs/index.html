@@ -634,7 +634,9 @@ async function showArticle(id, fromPopstate) {
 
   try {
     const resp = await fetch(`${BASE}/data/articles/${id}.json?v=${Date.now()}`);
+    if (!resp.ok) throw new Error();
     const art = await resp.json();
+    if (!art.title && (!art.body || !art.body.length)) throw new Error();
     renderArticle(art);
   } catch (e) {
     articleView.innerHTML = '<div class="empty">此文章可能為付費內容或已下架</div>';
