@@ -637,7 +637,7 @@ async function showArticle(id, fromPopstate) {
     const art = await resp.json();
     renderArticle(art);
   } catch (e) {
-    articleView.innerHTML = '<div class="empty">文章載入失敗</div>';
+    articleView.innerHTML = '<div class="empty">此文章可能為付費內容或已下架</div>';
   }
 
   window.scrollTo(0, 0);

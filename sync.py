@@ -253,6 +253,9 @@ def scrape_new_articles(all_ids):
         print(f"  [{i+1}/{len(new_ids)}] {aid}", end=" ", flush=True)
         try:
             article = scrape_udn_article(url)
+            if not article["title"] and not article["body"]:
+                print("SKIP (empty/paywall)")
+                continue
             out = {
                 "article_id": aid,
                 "title": article["title"],
