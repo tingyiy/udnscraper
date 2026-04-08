@@ -194,36 +194,6 @@ header {
 .slider-prev { left: 0; border-radius: 0 4px 4px 0; }
 .slider-next { right: 0; border-radius: 4px 0 0 4px; }
 
-/* Tiles */
-.tiles {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  padding: 10px;
-  background: var(--bg);
-}
-
-.tile {
-  position: relative;
-  border-radius: 8px;
-  overflow: hidden;
-  aspect-ratio: 16/9;
-  background-size: cover;
-  background-position: center;
-  display: flex;
-  align-items: flex-end;
-  text-decoration: none;
-}
-
-.tile-title {
-  width: 100%;
-  padding: 24px 10px 8px;
-  background: linear-gradient(transparent, rgba(0,0,0,0.7));
-  color: #fff;
-  font-size: 14px;
-  font-weight: 600;
-}
-
 /* Section headers */
 .section-header {
   padding: 18px 16px 10px;
@@ -504,19 +474,6 @@ function renderSection() {
   // Slider
   if (section.slider && section.slider.length) {
     html += renderSlider(section.slider);
-  }
-
-  // Tiles
-  if (section.tiles && section.tiles.length) {
-    html += '<div class="tiles">';
-    for (const tile of section.tiles) {
-      html += `
-        <a class="tile" href="${esc(tile.href)}" target="_blank"
-           style="background-image: url('${esc(tile.image)}')">
-          <span class="tile-title">${esc(tile.title)}</span>
-        </a>`;
-    }
-    html += '</div>';
   }
 
   // Sub-sections
