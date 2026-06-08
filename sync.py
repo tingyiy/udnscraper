@@ -75,6 +75,7 @@ def parse_slider(soup):
                     "article_id": aid,
                     "title": title,
                     "thumbnail": url,
+                    "link": link.split("?")[0],
                 })
         break
     return items
@@ -111,6 +112,7 @@ def parse_subsections(soup):
                 "title": heading.get_text(strip=True),
                 "date": time_el.get_text(strip=True) if time_el else "",
                 "thumbnail": img.get("src", "") if img else "",
+                "link": a["href"].split("?")[0],
             })
 
         if articles:
@@ -140,6 +142,7 @@ def fetch_latest_api(cate_id):
                     "summary": entry.get("paragraph", ""),
                     "thumbnail": entry.get("url", ""),
                     "date": entry.get("time", {}).get("date", ""),
+                    "link": entry.get("titleLink", "").split("?")[0],
                 })
 
         if data.get("end", True):
@@ -205,24 +208,32 @@ def sync_all():
 
 
 def collect_all_ids(categories):
-    """Gather all article IDs referenced in any listing."""
-    ids = set()
+    """Map every referenced article ID to its real relative link path."""
+    links = {}
     for section in categories.values():
         for item in section.get("slider", []):
-            ids.add(item["article_id"])
+            links.setdefault(item["article_id"], item.get("link", ""))
         for sub in section.get("subsections", []):
             for item in sub["articles"]:
-                ids.add(item["article_id"])
-    return ids
+                links.setdefault(item["article_id"], item.get("link", ""))
+    return links
 
 
-def scrape_new_articles(all_ids):
+def article_url(aid, link):
+    """Build an absolute UDN article URL from a relative link, with fallback."""
+    if not link:
+        # Fallback: any valid category segment resolves; '/0/' no longer does.
+        link = f"/news/story/6811/{aid}"
+    return link if link.startswith("http") else f"https://udn.com{link}"
+
+
+def scrape_new_articles(links_by_id):
     """Scrape articles that don't have a JSON file yet."""
-    new_ids = [aid for aid in all_ids if not os.path.exists(os.path.join(ARTICLES_DIR, f"{aid}.json"))]
+    new_ids = [aid for aid in links_by_id if not os.path.exists(os.path.join(ARTICLES_DIR, f"{aid}.json"))]
     print(f"\nNew articles to scrape: {len(new_ids)}")
 
     for i, aid in enumerate(new_ids):
-        url = f"https://udn.com/news/story/0/{aid}"
+        url = article_url(aid, links_by_id.get(aid, ""))
         print(f"  [{i+1}/{len(new_ids)}] {aid}", end=" ", flush=True)
         try:
             article = scrape_udn_article(url)
@@ -254,7 +265,7 @@ def cleanup_orphans(all_ids):
         aid = os.path.basename(path).replace(".json", "")
         existing.add(aid)
 
-    orphans = existing - all_ids
+    orphans = existing - set(all_ids)
     if orphans:
         print(f"\nCleaning up {len(orphans)} orphaned articles")
         for aid in orphans:
